@@ -4,7 +4,7 @@ import time
 import datetime
 import fitz
 from PIL import Image, ImageFont, ImageDraw
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 
 app = Flask(__name__)
 
@@ -84,6 +84,12 @@ def draw_centered_multiline(draw, text, font, color, center_x, start_y, spacing=
     draw_y = start_y - bbox[1]
     draw.multiline_text((draw_x, draw_y), text, font=font, fill=color, align='center', spacing=spacing)
     return start_y + h
+
+
+@app.route("/static/<path:filename>")
+def serve_static(filename):
+    static_folder = os.path.join(BASE_DIR, "static")
+    return send_from_directory(static_folder, filename)
 
 @app.route("/")
 def index():
