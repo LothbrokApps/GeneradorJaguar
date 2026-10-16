@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador Jaguar - Universidad Freire</title>
+    <link rel="icon" type="image/png" href="/static/img/icon.png">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Panel de Herramientas y Datos (Izquierda) -->
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <img src="/static/img/logo_unifreire.png" alt="Universidad Freire" class="logo">
+                <div class="badge">Nube / Cloud</div>
+            </header>
+
+            <form id="certForm" class="form-layout" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="txtNombres">
+                        <span>Lista de Nombres (Uno por línea)</span>
+                        <span class="hint">Normalización automática</span>
+                    </label>
+                    <textarea id="txtNombres" rows="4" placeholder="Valeria Sofía Montoya Cárdenas&#10;Sebastián Ríos Del Moral">Valeria Sofía Montoya Cárdenas&#10;Sebastián Ríos Del Moral</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="txtMotivo1">Primer Motivo del Reconocimiento</label>
+                    <textarea id="txtMotivo1" rows="2" placeholder="Presiona Enter para saltar de renglón...">Por su destacada participación en el programa</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="txtEvento">Nombre del Evento / Programa</label>
+                    <textarea id="txtEvento" rows="2" placeholder="Presiona Enter para saltar de renglón...">Diplomado de Desarrollo</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="txtMotivo2">Segundo Motivo del Reconocimiento <span class="tag-sub">Debajo del programa</span></label>
+                    <textarea id="txtMotivo2" rows="2" placeholder="Opcional: texto complementario debajo del programa...">Por haber acreditado satisfactoriamente los módulos correspondientes</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="txtFecha">Fecha y Lugar</label>
+                    <textarea id="txtFecha" rows="1">{{ fecha_default }}</textarea>
+                </div>
+
+                <div class="action-zone">
+                    <button type="button" id="btnDownload" class="btn-primary">
+                        <span class="icon">🎓</span>
+                        <span id="btnText">Generar y Descargar Reconocimientos (PDF)</span>
+                    </button>
+                    <div id="statusAlert" class="status-alert hidden"></div>
+                </div>
+            </form>
+
+            <footer class="sidebar-footer">
+                <p>Plataforma Institucional Universidad Freire &bull; v1.0 Cloud</p>
+            </footer>
+        </aside>
+
+        <!-- Panel de Vista Previa (Derecha) -->
+        <main class="preview-panel">
+            <div class="preview-header">
+                <h2>Vista Previa en Tiempo Real</h2>
+                <span class="status-tag">Actualización instantánea</span>
+            </div>
+
+            <div class="preview-viewport">
+                <div id="previewSpinner" class="spinner-container hidden">
+                    <div class="spinner"></div>
+                </div>
+                <img id="previewImg" src="" alt="Vista previa de diploma" class="preview-image">
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
