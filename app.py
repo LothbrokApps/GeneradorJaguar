@@ -4,7 +4,7 @@ import time
 import datetime
 import fitz
 from PIL import Image, ImageFont, ImageDraw
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_file
 
 app = Flask(__name__)
 
@@ -13,7 +13,16 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MATERIALES_DIR = os.path.join(BASE_DIR, "Materiales")
 
 PLANTILLA_PATH = os.path.join(MATERIALES_DIR, "plantilla.pdf")
-FONT_PATH = os.path.join(MATERIALES_DIR, "Acumin Variable Concept.ttf")
+
+# Fuentes estáticas para garantizar renderizado perfecto sin separación de letras en Vercel, Linux y Docker
+FONT_NAME_PATH = os.path.join(MATERIALES_DIR, "Acumin-ExtraCondensedSemiboldItalic.ttf")
+FONT_REG_PATH = os.path.join(MATERIALES_DIR, "Acumin-SemiCondensedMedium.ttf")
+FONT_BLD_PATH = os.path.join(MATERIALES_DIR, "Acumin-SemiCondensedBold.ttf")
+FONT_VAR_PATH = os.path.join(MATERIALES_DIR, "Acumin Variable Concept.ttf")
+
+def get_font(path, fallback_path, size):
+    target = path if os.path.exists(path) else fallback_path
+    return ImageFont.truetype(target, int(size))
 
 def get_fecha_lugar_default():
     meses = [
@@ -23,26 +32,6 @@ def get_fecha_lugar_default():
     now = datetime.datetime.now()
     mes_actual = meses[now.month - 1]
     return f"Nuevo León, {mes_actual} {now.year}"
-
-def configure_font_variation(font, variation_name):
-    """Garantiza renderizado tipográfico sin espaciado anómalo en servidores Linux y contenedores."""
-    AXES_MAP = {
-        "ExtraCondensed Semibold Italic": [600, 50, 12],
-        "ExtraCondensed Bold Italic": [700, 50, 12],
-        "SemiCondensed Medium": [500, 75, 0],
-        "SemiCondensed Bold": [700, 75, 0],
-        "SemiCondensed Italic": [500, 75, 12],
-        "SemiCondensed Bold Italic": [700, 75, 12],
-    }
-    try:
-        font.set_variation_by_name(variation_name)
-    except Exception:
-        pass
-    if variation_name in AXES_MAP:
-        try:
-            font.set_variation_by_axes(AXES_MAP[variation_name])
-        except Exception:
-            pass
 
 def limpiar_nombre_propio(raw_name):
     tokens = [t.strip() for t in raw_name.split() if t.strip()]
@@ -62,13 +51,16 @@ def limpiar_nombre_propio(raw_name):
         result.append("-".join(clean_subtokens))
     return " ".join(result)
 
-def get_fitted_font(font_path, text, initial_size, max_width, draw, variation="ExtraCondensed Semibold Italic", min_size=14):
+def get_fitted_font(text, initial_size, max_width, draw, min_size=14):
+    """Ajusta dinámicamente el tamaño de la fuente estática ExtraCondensed para que nunca se desborde ni separe."""
+    target_path = FONT_NAME_PATH if os.path.exists(FONT_NAME_PATH) else FONT_VAR_PATH
     size = float(initial_size)
     while size > min_size:
         try:
-            f = ImageFont.truetype(font_path, int(size))
-            if variation:
-                configure_font_variation(f, variation)
+            f = ImageFont.truetype(target_path, int(size))
+            if not os.path.exists(FONT_NAME_PATH):
+                try: f.set_variation_by_axes([600, 50, 12])
+                except Exception: pass
             bbox = draw.textbbox((0, 0), text, font=f)
             w = bbox[2] - bbox[0]
             if w <= max_width:
@@ -76,9 +68,10 @@ def get_fitted_font(font_path, text, initial_size, max_width, draw, variation="E
             size -= 1.5
         except Exception:
             break
-    f = ImageFont.truetype(font_path, int(size))
-    if variation:
-        configure_font_variation(f, variation)
+    f = ImageFont.truetype(target_path, int(size))
+    if not os.path.exists(FONT_NAME_PATH):
+        try: f.set_variation_by_axes([600, 50, 12])
+        except Exception: pass
     return f
 
 def draw_centered_multiline(draw, text, font, color, center_x, start_y, spacing=4):
@@ -120,22 +113,15 @@ def preview():
         name_y_px = int(285 * SCALE)
         motivo_y_px = int(350 * SCALE)
 
-        font_desc_reg = ImageFont.truetype(FONT_PATH, int(16 * SCALE))
-        configure_font_variation(font_desc_reg, "SemiCondensed Medium")
-
-        font_desc_bld = ImageFont.truetype(FONT_PATH, int(16 * SCALE))
-        configure_font_variation(font_desc_bld, "SemiCondensed Bold")
-
-        font_desc_small = ImageFont.truetype(FONT_PATH, int(8 * SCALE))
-        configure_font_variation(font_desc_small, "SemiCondensed Medium")
+        font_desc_reg = get_font(FONT_REG_PATH, FONT_VAR_PATH, 16 * SCALE)
+        font_desc_bld = get_font(FONT_BLD_PATH, FONT_VAR_PATH, 16 * SCALE)
+        font_desc_small = get_font(FONT_REG_PATH, FONT_VAR_PATH, 8 * SCALE)
 
         text_color = (1, 61, 27, 255)
         draw = ImageDraw.Draw(img)
 
-        # Nombre con variación sin separación
-        font_name = get_fitted_font(
-            FONT_PATH, primer_nombre, int(43 * SCALE), int(640 * SCALE), draw, "ExtraCondensed Semibold Italic"
-        )
+        # Nombre con fuente estática ExtraCondensed Italic idéntica y sin separación
+        font_name = get_fitted_font(primer_nombre, int(43 * SCALE), int(640 * SCALE), draw)
         draw.text((CENTER_X, name_y_px), primer_nombre, font=font_name, fill=text_color, anchor="mt")
 
         # 1. Primer Motivo
@@ -192,14 +178,9 @@ def generate():
         name_y_px = int(285 * SCALE)
         motivo_y_px = int(350 * SCALE)
 
-        font_desc_reg = ImageFont.truetype(FONT_PATH, int(16 * SCALE))
-        configure_font_variation(font_desc_reg, "SemiCondensed Medium")
-
-        font_desc_bld = ImageFont.truetype(FONT_PATH, int(16 * SCALE))
-        configure_font_variation(font_desc_bld, "SemiCondensed Bold")
-
-        font_desc_small = ImageFont.truetype(FONT_PATH, int(8 * SCALE))
-        configure_font_variation(font_desc_small, "SemiCondensed Medium")
+        font_desc_reg = get_font(FONT_REG_PATH, FONT_VAR_PATH, 16 * SCALE)
+        font_desc_bld = get_font(FONT_BLD_PATH, FONT_VAR_PATH, 16 * SCALE)
+        font_desc_small = get_font(FONT_REG_PATH, FONT_VAR_PATH, 8 * SCALE)
 
         text_color = (1, 61, 27, 255)
 
@@ -214,9 +195,7 @@ def generate():
             img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (255, 255, 255, 0))
             draw = ImageDraw.Draw(img)
 
-            font_name = get_fitted_font(
-                FONT_PATH, name, int(43 * SCALE), int(640 * SCALE), draw, "ExtraCondensed Semibold Italic"
-            )
+            font_name = get_fitted_font(name, int(43 * SCALE), int(640 * SCALE), draw)
             draw.text((CENTER_X, name_y_px), name, font=font_name, fill=text_color, anchor="mt")
 
             # 1. Primer Motivo
@@ -273,7 +252,7 @@ def generate():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "app": "Generador Jaguar Cloud", "version": "1.0.0"})
+    return jsonify({"status": "ok", "app": "Generador Jaguar Cloud", "version": "1.0.1"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
