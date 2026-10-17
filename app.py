@@ -20,6 +20,28 @@ FONT_REG_PATH = os.path.join(MATERIALES_DIR, "Acumin-SemiCondensedMedium.ttf")
 FONT_BLD_PATH = os.path.join(MATERIALES_DIR, "Acumin-SemiCondensedBold.ttf")
 FONT_VAR_PATH = os.path.join(MATERIALES_DIR, "Acumin Variable Concept.ttf")
 
+# Diccionario fonético y ortográfico exhaustivo en español para nombres y apellidos
+TILDE_DICT = {
+    'maria': 'María', 'jose': 'José', 'jesus': 'Jesús', 'sofia': 'Sofía', 'angel': 'Ángel',
+    'sebastian': 'Sebastián', 'joaquin': 'Joaquín', 'martin': 'Martín', 'ramon': 'Ramón',
+    'raul': 'Raúl', 'andres': 'Andrés', 'monica': 'Mónica', 'veronica': 'Verónica',
+    'rene': 'René', 'victor': 'Víctor', 'hector': 'Héctor', 'cesar': 'César', 'oscar': 'Óscar',
+    'ruben': 'Rubén', 'ivan': 'Iván', 'fabian': 'Fabián', 'damian': 'Damián', 'adrian': 'Adrián',
+    'julian': 'Julián', 'alvaro': 'Álvaro', 'inigo': 'Íñigo', 'matias': 'Matías', 'tomas': 'Tomás',
+    'lucia': 'Lucía', 'ines': 'Inés', 'belen': 'Belén', 'agustin': 'Agustín', 'valentin': 'Valentín',
+    'cristobal': 'Cristóbal', 'elias': 'Elías', 'moises': 'Moisés', 'isaias': 'Isaías',
+    'salome': 'Salomé', 'noemi': 'Noemí', 'miriam': 'Míriam',
+    'martinez': 'Martínez', 'perez': 'Pérez', 'gonzalez': 'González', 'rodriguez': 'Rodríguez',
+    'gomez': 'Gómez', 'sanchez': 'Sánchez', 'hernandez': 'Hernández', 'lopez': 'López',
+    'ramirez': 'Ramírez', 'alvarez': 'Álvarez', 'fernandez': 'Fernández', 'gutierrez': 'Gutiérrez',
+    'garcia': 'García', 'diaz': 'Díaz', 'juarez': 'Juárez', 'munoz': 'Muñoz', 'nunez': 'Núñez',
+    'dominguez': 'Domínguez', 'vazquez': 'Vázquez', 'velazquez': 'Velázquez', 'jimenez': 'Jiménez',
+    'mendez': 'Méndez', 'benitez': 'Benítez', 'castano': 'Castaño', 'marquez': 'Márquez',
+    'avila': 'Ávila', 'cortes': 'Cortés', 'pena': 'Peña', 'cardenas': 'Cárdenas', 'rios': 'Ríos',
+    'moron': 'Morón', 'ibanez': 'Ibáñez', 'quinones': 'Quiñones', 'ortega': 'Ortega',
+    'montanez': 'Montañez', 'godinez': 'Godínez', 'valdes': 'Valdés', 'solis': 'Solís'
+}
+
 def get_font(path, fallback_path, size):
     target = path if os.path.exists(path) else fallback_path
     return ImageFont.truetype(target, int(size))
@@ -33,26 +55,42 @@ def get_fecha_lugar_default():
     mes_actual = meses[now.month - 1]
     return f"Nuevo León, {mes_actual} {now.year}"
 
-def limpiar_nombre_propio(raw_name):
-    tokens = [t.strip() for t in raw_name.split() if t.strip()]
+def corregir_ortografia_nombre(raw_name):
+    """
+    Normaliza y aplica corrección ortográfica estricta en español:
+    - Inyecta tildes y diacríticos en nombres y apellidos comunes.
+    - Limpia signos de puntuación accidentales (puntos finales, comas).
+    - Preserva y formatea títulos académicos (Dr., Dra., Lic., Ing., Mtro.).
+    - Respeta preposiciones y conectores en minúscula (de la, del, y).
+    - Elimina dobles espacios y normaliza guiones.
+    """
+    raw = raw_name.strip().rstrip(".,;")
+    tokens = [t.strip() for t in raw.split() if t.strip()]
     if not tokens:
         return ""
     LOWER_WORDS = {"de", "del", "la", "las", "los", "y", "e", "en", "da", "do", "das", "dos", "van", "von", "der"}
+    TITLES = {
+        "dr": "Dr.", "dra": "Dra.", "lic": "Lic.", "ing": "Ing.", 
+        "mtro": "Mtro.", "mtra": "Mtra.", "prof": "Prof.", "profa": "Profa."
+    }
     result = []
     for i, token in enumerate(tokens):
         subtokens = token.split("-")
-        clean_subtokens = []
+        clean_subs = []
         for j, st in enumerate(subtokens):
-            st_lower = st.lower()
-            if (i > 0 or j > 0) and st_lower in LOWER_WORDS:
-                clean_subtokens.append(st_lower)
+            st_clean = st.strip(".,;").lower()
+            if st_clean in TITLES:
+                clean_subs.append(TITLES[st_clean])
+            elif (i > 0 or j > 0) and st_clean in LOWER_WORDS:
+                clean_subs.append(st_clean)
+            elif st_clean in TILDE_DICT:
+                clean_subs.append(TILDE_DICT[st_clean])
             else:
-                clean_subtokens.append(st_lower.capitalize())
-        result.append("-".join(clean_subtokens))
+                clean_subs.append(st.capitalize())
+        result.append("-".join(clean_subs))
     return " ".join(result)
 
 def get_fitted_font(text, initial_size, max_width, draw, min_size=14):
-    """Ajusta dinámicamente el tamaño de la fuente estática ExtraCondensed para que nunca se desborde ni separe."""
     target_path = FONT_NAME_PATH if os.path.exists(FONT_NAME_PATH) else FONT_VAR_PATH
     size = float(initial_size)
     while size > min_size:
@@ -85,7 +123,6 @@ def draw_centered_multiline(draw, text, font, color, center_x, start_y, spacing=
     draw.multiline_text((draw_x, draw_y), text, font=font, fill=color, align='center', spacing=spacing)
     return start_y + h
 
-
 @app.route("/static/<path:filename>")
 def serve_static(filename):
     static_folder = os.path.join(BASE_DIR, "static")
@@ -100,7 +137,7 @@ def preview():
     try:
         data = request.get_json() or {}
         nombres = [n.strip() for n in data.get("nombres", "").split("\n") if n.strip()]
-        primer_nombre = limpiar_nombre_propio(nombres[0]) if nombres else "Nombre de Alumno / Docente"
+        primer_nombre = corregir_ortografia_nombre(nombres[0]) if nombres else "Nombre de Alumno / Docente"
         motivo1 = data.get("motivo1", "").strip()
         evento = data.get("evento", "").strip()
         motivo2 = data.get("motivo2", "").strip()
@@ -126,7 +163,7 @@ def preview():
         text_color = (1, 61, 27, 255)
         draw = ImageDraw.Draw(img)
 
-        # Nombre con fuente estática ExtraCondensed Italic idéntica y sin separación
+        # Nombre con fuente estática ExtraCondensed Italic sin separación
         font_name = get_fitted_font(primer_nombre, int(43 * SCALE), int(640 * SCALE), draw)
         draw.text((CENTER_X, name_y_px), primer_nombre, font=font_name, fill=text_color, anchor="mt")
 
@@ -176,6 +213,9 @@ def generate():
         evento = data.get("evento", "").strip()
         motivo2 = data.get("motivo2", "").strip()
         fecha = data.get("fecha", "").strip() or get_fecha_lugar_default()
+        
+        batch_index = data.get("batch_index", 1)
+        total_batches = data.get("total_batches", 1)
 
         SCALE = 4.16666667
         CANVAS_W = 3300
@@ -197,7 +237,7 @@ def generate():
         final_doc = fitz.open()
 
         for raw_name in nombres:
-            name = limpiar_nombre_propio(raw_name)
+            name = corregir_ortografia_nombre(raw_name)
             img = Image.new("RGBA", (CANVAS_W, CANVAS_H), (255, 255, 255, 0))
             draw = ImageDraw.Draw(img)
 
@@ -237,6 +277,11 @@ def generate():
             final_doc.insert_pdf(template_doc, from_page=0, to_page=0)
             page = final_doc[-1]
             page.insert_image(fitz.Rect(0, 0, 792, 612), stream=img_data)
+            
+            # Liberación de memoria explícita para evitar OOM
+            del img
+            del img_bytes
+            del img_data
 
         out_pdf_bytes = io.BytesIO()
         final_doc.save(out_pdf_bytes, garbage=4, deflate=True, clean=True, deflate_images=True)
@@ -245,7 +290,11 @@ def generate():
 
         out_pdf_bytes.seek(0)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        download_name = f"Reconocimientos_UniFreire_{timestamp}.pdf"
+        
+        if total_batches > 1:
+            download_name = f"Lote_{batch_index:02d}_Reconocimientos_UniFreire_{timestamp}.pdf"
+        else:
+            download_name = f"Reconocimientos_UniFreire_{timestamp}.pdf"
 
         return send_file(
             out_pdf_bytes,
@@ -258,7 +307,7 @@ def generate():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "app": "Generador Jaguar Cloud", "version": "1.0.1"})
+    return jsonify({"status": "ok", "app": "Generador Jaguar Cloud", "version": "1.1.0"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))

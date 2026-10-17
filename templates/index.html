@@ -329,11 +329,25 @@ textarea:focus {
 
             <form id="certForm" class="form-layout" onsubmit="return false;">
                 <div class="form-group">
-                    <label for="txtNombres">
-                        <span>Lista de Nombres (Uno por línea)</span>
-                        <span class="hint">Normalización automática</span>
-                    </label>
+                    <div class="field-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label for="txtNombres" style="font-size: 12px; font-weight: 700; color: var(--text-primary);">
+                            <span>Lista de Nombres (Uno por renglón)</span>
+                        </label>
+                        <div class="header-badges" style="display: flex; align-items: center; gap: 6px;">
+                            <span id="namesCounter" class="counter-badge" style="background-color: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px;">2 nombres</span>
+                            <span class="ortho-badge" style="background-color: #dcfce7; color: #15803d; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 6px;">✓ Tildes & Ortografía ES</span>
+                        </div>
+                    </div>
                     <textarea id="txtNombres" rows="4" placeholder="Valeria Sofía Montoya Cárdenas&#10;Sebastián Ríos Del Moral">Valeria Sofía Montoya Cárdenas&#10;Sebastián Ríos Del Moral</textarea>
+                </div>
+
+                <div class="batch-config-bar" style="display: flex; align-items: center; justify-content: space-between; background-color: #f8fafc; border: 1px dashed var(--border-color); border-radius: 8px; padding: 6px 10px; font-size: 11px; color: var(--text-secondary);">
+                    <span>Dividir automáticamente en lotes de:</span>
+                    <select id="batchSize" style="padding: 3px 6px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 11px; font-weight: 600; background-color: #fff; color: var(--text-primary);">
+                        <option value="25" selected>25 diplomas por lote (Recomendado)</option>
+                        <option value="50">50 diplomas por lote</option>
+                        <option value="100">100 diplomas por lote</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
@@ -361,6 +375,13 @@ textarea:focus {
                         <span class="icon">🎓</span>
                         <span id="btnText">Generar y Descargar Reconocimientos (PDF)</span>
                     </button>
+                    
+                    <div id="progressContainer" class="progress-container hidden" style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+                        <div class="progress-bar-bg" style="width: 100%; height: 8px; background-color: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                            <div id="progressBarFill" class="progress-bar-fill" style="height: 100%; width: 0%; background-color: var(--verde-inst); border-radius: 4px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+
                     <div id="statusAlert" class="status-alert hidden"></div>
                 </div>
             </form>
@@ -393,21 +414,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const txtEvento = document.getElementById('txtEvento');
     const txtMotivo2 = document.getElementById('txtMotivo2');
     const txtFecha = document.getElementById('txtFecha');
+    const namesCounter = document.getElementById('namesCounter');
+    const batchSizeSelect = document.getElementById('batchSize');
     const btnDownload = document.getElementById('btnDownload');
     const btnText = document.getElementById('btnText');
     const statusAlert = document.getElementById('statusAlert');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBarFill = document.getElementById('progressBarFill');
     const previewImg = document.getElementById('previewImg');
     const previewSpinner = document.getElementById('previewSpinner');
 
     let debounceTimer = null;
 
-    function getFormData() {
+    function getCleanNamesList() {
+        return txtNombres.value
+            .split('\n')
+            .map(n => n.trim())
+            .filter(n => n.length > 0);
+    }
+
+    function updateNamesCounter() {
+        const names = getCleanNamesList();
+        const count = names.length;
+        const bSize = parseInt(batchSizeSelect.value, 10);
+        const totalBatches = Math.ceil(count / bSize) || 1;
+
+        if (count === 0) {
+            namesCounter.textContent = '0 nombres';
+            namesCounter.style.backgroundColor = '#f1f5f9';
+            namesCounter.style.color = '#64748b';
+        } else if (count === 1) {
+            namesCounter.textContent = '1 nombre';
+            namesCounter.style.backgroundColor = '#e0f2fe';
+            namesCounter.style.color = '#0369a1';
+        } else if (totalBatches > 1) {
+            namesCounter.textContent = `${count} nombres (${totalBatches} lotes de ${bSize})`;
+            namesCounter.style.backgroundColor = '#dbeafe';
+            namesCounter.style.color = '#1e40af';
+        } else {
+            namesCounter.textContent = `${count} nombres (1 lote)`;
+            namesCounter.style.backgroundColor = '#e0f2fe';
+            namesCounter.style.color = '#0369a1';
+        }
+    }
+
+    function getFormData(nombresSubset = null, batchIndex = 1, totalBatches = 1) {
         return {
-            nombres: txtNombres.value,
+            nombres: nombresSubset ? nombresSubset.join('\n') : txtNombres.value,
             motivo1: txtMotivo1.value,
             evento: txtEvento.value,
             motivo2: txtMotivo2.value,
-            fecha: txtFecha.value
+            fecha: txtFecha.value,
+            batch_index: batchIndex,
+            total_batches: totalBatches
         };
     }
 
@@ -440,61 +499,114 @@ document.addEventListener('DOMContentLoaded', () => {
         debounceTimer = setTimeout(updatePreview, 350);
     }
 
-    [txtNombres, txtMotivo1, txtEvento, txtMotivo2, txtFecha].forEach(el => {
+    txtNombres.addEventListener('input', () => {
+        updateNamesCounter();
+        schedulePreview();
+    });
+
+    batchSizeSelect.addEventListener('change', updateNamesCounter);
+
+    [txtMotivo1, txtEvento, txtMotivo2, txtFecha].forEach(el => {
         el.addEventListener('input', schedulePreview);
     });
 
-    // Descarga automática directa al generar
+    function triggerDownload(blob, filename) {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            window.URL.revokeObjectURL(downloadUrl);
+            a.remove();
+        }, 500);
+    }
+
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    // Generación por lotes asíncrona a prueba de timeouts y saturación
     btnDownload.addEventListener('click', async () => {
-        const nombresList = txtNombres.value.trim();
-        if (!nombresList) {
-            showAlert('Por favor ingresa al menos un nombre.', 'error');
+        const allNames = getCleanNamesList();
+        const totalNames = allNames.length;
+
+        if (totalNames === 0) {
+            showAlert('Por favor ingresa al menos un nombre en la lista.', 'error');
             return;
         }
 
+        const bSize = parseInt(batchSizeSelect.value, 10);
+        const totalBatches = Math.ceil(totalNames / bSize);
+
         btnDownload.disabled = true;
-        btnText.textContent = 'Procesando y generando lote PDF...';
-        showAlert('Generando diplomas... la descarga comenzará automáticamente.', 'success');
+        progressContainer.classList.remove('hidden');
+        progressBarFill.style.width = '0%';
 
         try {
-            const res = await fetch('/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(getFormData())
-            });
+            for (let b = 0; b < totalBatches; b++) {
+                const batchIndex = b + 1;
+                const start = b * bSize;
+                const end = Math.min(start + bSize, totalNames);
+                const batchNames = allNames.slice(start, end);
 
-            if (!res.ok) {
-                const errData = await res.json().catch(() => ({}));
-                throw new Error(errData.error || 'Error al generar el lote.');
+                const currentPercent = Math.round((b / totalBatches) * 100);
+                progressBarFill.style.width = `${currentPercent}%`;
+
+                if (totalBatches > 1) {
+                    btnText.textContent = `Generando Lote ${batchIndex} de ${totalBatches} (${batchNames.length} diplomas)...`;
+                    showAlert(`Procesando lote ${batchIndex} de ${totalBatches} (nombres ${start + 1} al ${end})...`, 'success');
+                } else {
+                    btnText.textContent = `Generando lote de ${totalNames} diplomas...`;
+                    showAlert('Generando diplomas... la descarga iniciará de inmediato.', 'success');
+                }
+
+                const payload = getFormData(batchNames, batchIndex, totalBatches);
+
+                const res = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `Error en el lote ${batchIndex}`);
+                }
+
+                let filename = totalBatches > 1 
+                    ? `Lote_${String(batchIndex).padStart(2, '0')}_Reconocimientos_UniFreire.pdf`
+                    : 'Reconocimientos_UniFreire.pdf';
+
+                const disposition = res.headers.get('Content-Disposition');
+                if (disposition && disposition.includes('filename=')) {
+                    const match = disposition.match(/filename="?([^";]+)"?/);
+                    if (match && match[1]) filename = match[1];
+                }
+
+                const blob = await res.blob();
+                triggerDownload(blob, filename);
+
+                if (b < totalBatches - 1) {
+                    await delay(800);
+                }
             }
 
-            // Extraer nombre de archivo desde cabeceras Content-Disposition o predeterminado
-            const disposition = res.headers.get('Content-Disposition');
-            let filename = 'Reconocimientos_UniFreire.pdf';
-            if (disposition && disposition.includes('filename=')) {
-                const match = disposition.match(/filename="?([^";]+)"?/);
-                if (match && match[1]) filename = match[1];
+            progressBarFill.style.width = '100%';
+            if (totalBatches > 1) {
+                showAlert(`✓ ¡Éxito! Se generaron y descargaron automáticamente los ${totalBatches} lotes (${totalNames} reconocimientos en total).`, 'success');
+            } else {
+                showAlert(`✓ ¡Éxito! Reconocimientos generados y descargados correctamente.`, 'success');
             }
-
-            // Descarga automática directa
-            const blob = await res.blob();
-            const downloadUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = downloadUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click(); // Disparo automático de descarga
-            window.URL.revokeObjectURL(downloadUrl);
-            a.remove();
-
-            showAlert(`✓ ¡Descarga completada con éxito! Archivo: ${filename}`, 'success');
         } catch (err) {
             console.error(err);
-            showAlert(`Error: ${err.message}`, 'error');
+            showAlert(`Error durante la generación: ${err.message}`, 'error');
         } finally {
             btnDownload.disabled = false;
             btnText.textContent = 'Generar y Descargar Reconocimientos (PDF)';
+            setTimeout(() => {
+                progressContainer.classList.add('hidden');
+            }, 4000);
         }
     });
 
@@ -505,11 +617,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'success') {
             setTimeout(() => {
                 statusAlert.classList.add('hidden');
-            }, 6000);
+            }, 8000);
         }
     }
 
-    // Inicializar primera vista previa al cargar la página
+    updateNamesCounter();
     updatePreview();
 });
 
