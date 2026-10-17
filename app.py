@@ -128,6 +128,21 @@ def serve_static(filename):
     static_folder = os.path.join(BASE_DIR, "static")
     return send_from_directory(static_folder, filename)
 
+_PREVIEW_BASE_IMG = None
+
+def get_preview_base_image():
+    global _PREVIEW_BASE_IMG
+    if _PREVIEW_BASE_IMG is None:
+        doc = fitz.open(PLANTILLA_PATH)
+        if doc.is_encrypted:
+            doc.authenticate(PDF_PASSWORD)
+        page = doc[0]
+        pix = page.get_pixmap(dpi=72)
+        c_mode = "RGBA" if pix.alpha else "RGB"
+        _PREVIEW_BASE_IMG = Image.frombytes(c_mode, [pix.width, pix.height], pix.samples)
+        doc.close()
+    return _PREVIEW_BASE_IMG.copy()
+
 @app.route("/")
 def index():
     return render_template("index.html", fecha_default=get_fecha_lugar_default())
@@ -143,13 +158,7 @@ def preview():
         motivo2 = data.get("motivo2", "").strip()
         fecha = data.get("fecha", "").strip() or get_fecha_lugar_default()
 
-        doc = fitz.open(PLANTILLA_PATH)
-        if doc.is_encrypted:
-            doc.authenticate(PDF_PASSWORD)
-        page = doc[0]
-        pix = page.get_pixmap(dpi=72)
-        c_mode = "RGBA" if pix.alpha else "RGB"
-        img = Image.frombytes(c_mode, [pix.width, pix.height], pix.samples)
+        img = get_preview_base_image()
 
         SCALE = 1.0
         CENTER_X = int(396 * SCALE)
@@ -192,12 +201,14 @@ def preview():
             draw, fecha, font_desc_small, text_color, CENTER_X, y_fecha, spacing=int(3 * SCALE)
         )
 
-        doc.close()
-
         img_bytes = io.BytesIO()
-        img.save(img_bytes, format="PNG")
+        if img.mode != 'RGB':
+            img_rgb = img.convert('RGB')
+        else:
+            img_rgb = img
+        img_rgb.save(img_bytes, format="JPEG", quality=88)
         img_bytes.seek(0)
-        return send_file(img_bytes, mimetype="image/png")
+        return send_file(img_bytes, mimetype="image/jpeg")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
